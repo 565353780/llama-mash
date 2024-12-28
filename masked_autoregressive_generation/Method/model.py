@@ -43,8 +43,8 @@ def repeat_kv(x: torch.Tensor, n_rep: int) -> torch.Tensor:
     )
 
 def mask_by_order(mask_len, order, bsz, seq_len):
-    masking = torch.zeros(bsz, seq_len).to(order.device())
-    masking = torch.scatter(masking, dim=-1, index=order[:, :mask_len.long()], src=torch.ones(bsz, seq_len).to(order.device())).bool()
+    masking = torch.zeros(bsz, seq_len).to(order.device)
+    masking = torch.scatter(masking, dim=-1, index=order[:, :mask_len.long()], src=torch.ones(bsz, seq_len).to(order.device)).bool()
     return masking
 
 def modulate(x, shift, scale):

@@ -345,10 +345,8 @@ class Trainer(object):
             bsz=sample_num,
             num_iter=64,
             labels=condition_tensor,
+            progress=True,
         )
-
-        print(sampled_array.shape)
-        exit()
 
         mash_model = Mash(
             self.mash_channel,
