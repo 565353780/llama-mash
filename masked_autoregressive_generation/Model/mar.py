@@ -1,22 +1,16 @@
-from functools import partial
-
-import numpy as np
-from tqdm import tqdm
-import scipy.stats as stats
 import math
 import torch
-import torch.nn as nn
+import numpy as np
+import scipy.stats as stats
+from torch import nn
+from tqdm import tqdm
+from functools import partial
 from torch.utils.checkpoint import checkpoint
-
 from timm.models.vision_transformer import Block
 
 from models.diffloss import DiffLoss
 
-
-def mask_by_order(mask_len, order, bsz, seq_len):
-    masking = torch.zeros(bsz, seq_len).cuda()
-    masking = torch.scatter(masking, dim=-1, index=order[:, :mask_len.long()], src=torch.ones(bsz, seq_len).cuda()).bool()
-    return masking
+from masked_autoregressive_generation.Method.model import mask_by_order
 
 
 class MAR(nn.Module):
