@@ -7,8 +7,6 @@ from fairscale.nn.model_parallel.layers import (
 
 from masked_autoregressive_generation.Config.model import ModelArgs
 from masked_autoregressive_generation.Model.Layer.rms_norm import RMSNorm
-from masked_autoregressive_generation.Model.Layer.attention import Attention
-from masked_autoregressive_generation.Model.Layer.feed_forward import FeedForward
 from masked_autoregressive_generation.Model.Layer.transformer_block import TransformerBlock
 from masked_autoregressive_generation.Method.model import precompute_freqs_cis
 

@@ -8,15 +8,15 @@ from functools import partial
 from torch.utils.checkpoint import checkpoint
 from timm.models.vision_transformer import Block
 
-from models.diffloss import DiffLoss
-
+from masked_autoregressive_generation.Loss.diff import DiffLoss
 from masked_autoregressive_generation.Method.model import mask_by_order
 
 
 class MAR(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size=256, vae_stride=16, patch_size=1,
+    def __init__(self,
+                 anchor_num: int = 400, vae_stride=16, patch_size=1,
                  encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
                  decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm,
@@ -39,11 +39,9 @@ class MAR(nn.Module):
         # VAE and patchify specifics
         self.vae_embed_dim = vae_embed_dim
 
-        self.img_size = img_size
         self.vae_stride = vae_stride
         self.patch_size = patch_size
-        self.seq_h = self.seq_w = img_size // vae_stride // patch_size
-        self.seq_len = self.seq_h * self.seq_w
+        self.seq_len = anchor_num
         self.token_embed_dim = vae_embed_dim * patch_size**2
         self.grad_checkpointing = grad_checkpointing
 
@@ -121,27 +119,6 @@ class MAR(nn.Module):
                 nn.init.constant_(m.bias, 0)
             if m.weight is not None:
                 nn.init.constant_(m.weight, 1.0)
-
-    def patchify(self, x):
-        bsz, c, h, w = x.shape
-        p = self.patch_size
-        h_, w_ = h // p, w // p
-
-        x = x.reshape(bsz, c, h_, p, w_, p)
-        x = torch.einsum('nchpwq->nhwcpq', x)
-        x = x.reshape(bsz, h_ * w_, c * p ** 2)
-        return x  # [n, l, d]
-
-    def unpatchify(self, x):
-        bsz = x.shape[0]
-        p = self.patch_size
-        c = self.vae_embed_dim
-        h_, w_ = self.seq_h, self.seq_w
-
-        x = x.reshape(bsz, h_, w_, c, p, p)
-        x = torch.einsum('nhwcpq->nchpwq', x)
-        x = x.reshape(bsz, c, h_ * p, w_ * p)
-        return x  # [n, c, h, w]
 
     def sample_orders(self, bsz):
         # generate a batch of random generation orders
@@ -231,13 +208,12 @@ class MAR(nn.Module):
         loss = self.diffloss(z=z, target=target, mask=mask)
         return loss
 
-    def forward(self, imgs, labels):
+    def forward(self, x: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
 
         # class embed
         class_embedding = self.class_emb(labels)
 
         # patchify and mask (drop) tokens
-        x = self.patchify(imgs)
         gt_latents = x.clone().detach()
         orders = self.sample_orders(bsz=x.size(0))
         mask = self.random_masking(x, orders)
@@ -318,8 +294,6 @@ class MAR(nn.Module):
             cur_tokens[mask_to_pred.nonzero(as_tuple=True)] = sampled_token_latent
             tokens = cur_tokens.clone()
 
-        # unpatchify
-        tokens = self.unpatchify(tokens)
         return tokens
 
 
