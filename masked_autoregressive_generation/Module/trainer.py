@@ -149,7 +149,10 @@ class Trainer(object):
         self.channels = int(
             9 + (2 * self.mask_degree + 1) + ((self.sh_degree + 1) ** 2)
         )
-        self.model = mar_base(anchor_num=self.mash_channel).to(self.device)
+        self.model = mar_base(
+            anchor_num=self.mash_channel,
+            device=self.device,
+        ).to(self.device)
 
         if self.local_rank == 0:
             self.ema_model = deepcopy(self.model)

@@ -14,7 +14,7 @@ def demo():
     num_workers = 16
     model_file_path = None
     # model_file_path = "../../output/20241226_09:04:34/total_model_last.pth".replace('../../', './')
-    device = "cpu"
+    device = "auto"
     warm_step_num = 2000
     finetune_step_num = -1
     lr = 2e-5
