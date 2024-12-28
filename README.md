@@ -1,1 +1,1 @@
-# llama-mash
+# Masked Autoregressive Generation
