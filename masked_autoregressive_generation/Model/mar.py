@@ -32,6 +32,7 @@ class MAR(nn.Module):
                  num_sampling_steps='100',
                  diffusion_batch_mul=4,
                  grad_checkpointing=False,
+                 device: str = 'cpu',
                  ):
         super().__init__()
 
@@ -44,6 +45,8 @@ class MAR(nn.Module):
         self.seq_len = anchor_num
         self.token_embed_dim = vae_embed_dim * patch_size**2
         self.grad_checkpointing = grad_checkpointing
+
+        self.device = device
 
         # --------------------------------------------------------------------------
         # Class Embedding
@@ -127,7 +130,7 @@ class MAR(nn.Module):
             order = np.array(list(range(self.seq_len)))
             np.random.shuffle(order)
             orders.append(order)
-        orders = torch.Tensor(np.array(orders)).cuda().long()
+        orders = torch.Tensor(np.array(orders)).to(self.device).long()
         return orders
 
     def random_masking(self, x, orders):
@@ -151,7 +154,7 @@ class MAR(nn.Module):
         # random drop class embedding during training
         if self.training:
             drop_latent_mask = torch.rand(bsz) < self.label_drop_prob
-            drop_latent_mask = drop_latent_mask.unsqueeze(-1).cuda().to(x.dtype)
+            drop_latent_mask = drop_latent_mask.unsqueeze(-1).to(self.device).to(x.dtype)
             class_embedding = drop_latent_mask * self.fake_latent + (1 - drop_latent_mask) * class_embedding
 
         x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
@@ -232,8 +235,8 @@ class MAR(nn.Module):
     def sample_tokens(self, bsz, num_iter=64, cfg=1.0, cfg_schedule="linear", labels=None, temperature=1.0, progress=False):
 
         # init and sample generation orders
-        mask = torch.ones(bsz, self.seq_len).cuda()
-        tokens = torch.zeros(bsz, self.seq_len, self.token_embed_dim).cuda()
+        mask = torch.ones(bsz, self.seq_len).to(self.device)
+        tokens = torch.zeros(bsz, self.seq_len, self.token_embed_dim).to(self.device)
         orders = self.sample_orders(bsz)
 
         indices = list(range(num_iter))
@@ -261,10 +264,10 @@ class MAR(nn.Module):
 
             # mask ratio for the next round, following MaskGIT and MAGE.
             mask_ratio = np.cos(math.pi / 2. * (step + 1) / num_iter)
-            mask_len = torch.Tensor([np.floor(self.seq_len * mask_ratio)]).cuda()
+            mask_len = torch.Tensor([np.floor(self.seq_len * mask_ratio)]).to(self.device)
 
             # masks out at least one for the next iteration
-            mask_len = torch.maximum(torch.Tensor([1]).cuda(),
+            mask_len = torch.maximum(torch.Tensor([1]).to(self.device),
                                      torch.minimum(torch.sum(mask, dim=-1, keepdims=True) - 1, mask_len))
 
             # get masking for next iteration and locations to be predicted in this iteration

@@ -491,7 +491,7 @@ class GaussianDiffusion:
         if noise is not None:
             img = noise
         else:
-            img = th.randn(*shape).cuda()
+            img = th.randn(*shape).to(device)
         indices = list(range(self.num_timesteps))[::-1]
 
         if progress:
@@ -501,7 +501,7 @@ class GaussianDiffusion:
             indices = tqdm(indices)
 
         for i in indices:
-            t = th.tensor([i] * shape[0]).cuda()
+            t = th.tensor([i] * shape[0]).to(device)
             with th.no_grad():
                 out = self.p_sample(
                     model,
@@ -658,7 +658,7 @@ class GaussianDiffusion:
         if noise is not None:
             img = noise
         else:
-            img = th.randn(*shape).cuda()
+            img = th.randn(*shape).to(device)
         indices = list(range(self.num_timesteps))[::-1]
 
         if progress:
@@ -668,7 +668,7 @@ class GaussianDiffusion:
             indices = tqdm(indices)
 
         for i in indices:
-            t = th.tensor([i] * shape[0]).cuda()
+            t = th.tensor([i] * shape[0]).to(device)
             with th.no_grad():
                 out = self.ddim_sample(
                     model,

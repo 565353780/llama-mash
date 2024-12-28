@@ -17,8 +17,10 @@ from masked_autoregressive_generation.Method.model import (
 
 
 class Attention(nn.Module):
-    def __init__(self, args: ModelArgs):
+    def __init__(self, args: ModelArgs, device: str = 'cpu'):
         super().__init__()
+        self.device = device
+
         self.n_kv_heads = args.n_heads if args.n_kv_heads is None else args.n_kv_heads
         model_parallel_size = fs_init.get_model_parallel_world_size()
         self.n_local_heads = args.n_heads // model_parallel_size
@@ -62,7 +64,7 @@ class Attention(nn.Module):
                 self.n_local_kv_heads,
                 self.head_dim,
             )
-        ).cuda()
+        ).to(self.device)
         self.cache_v = torch.zeros(
             (
                 args.max_batch_size,
@@ -70,7 +72,8 @@ class Attention(nn.Module):
                 self.n_local_kv_heads,
                 self.head_dim,
             )
-        ).cuda()
+        ).to(self.device)
+        return
 
     def forward(
         self,

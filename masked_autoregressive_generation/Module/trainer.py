@@ -20,8 +20,8 @@ from masked_autoregressive_generation.Module.logger import Logger
 from ma_sh.Model.mash import Mash
 
 
-def setup_distributed():
-    dist.init_process_group(backend="nccl")
+def setup_distributed(backend: str = 'nccl'):
+    dist.init_process_group(backend=backend)
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
     return local_rank
@@ -51,7 +51,8 @@ class Trainer(object):
         save_result_folder_path: Union[str, None] = None,
         save_log_folder_path: Union[str, None] = None,
     ) -> None:
-        self.local_rank = setup_distributed()
+        self.backend = 'nccl' if device != 'cpu' else 'gloo'
+        self.local_rank = setup_distributed(self.backend)
 
         self.mash_channel = 400
         self.mask_degree = 3
@@ -154,7 +155,10 @@ class Trainer(object):
             self.ema_model = deepcopy(self.model)
             self.ema_loss = None
 
-        self.model = DDP(self.model, device_ids=[self.local_rank], output_device=self.local_rank)
+        if self.backend == 'nccl':
+            self.model = DDP(self.model, device_ids=[self.local_rank], output_device=self.local_rank)
+        else:
+            self.model = DDP(self.model)
 
         if model_file_path is not None:
             self.loadModel(model_file_path)
