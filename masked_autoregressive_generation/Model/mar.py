@@ -94,7 +94,8 @@ class MAR(nn.Module):
             width=diffloss_w,
             depth=diffloss_d,
             num_sampling_steps=num_sampling_steps,
-            grad_checkpointing=grad_checkpointing
+            grad_checkpointing=grad_checkpointing,
+            device=self.device,
         )
         self.diffusion_batch_mul = diffusion_batch_mul
 

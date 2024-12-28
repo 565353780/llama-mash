@@ -87,14 +87,14 @@ class Trainer(object):
 
         self.dataloader_dict = {}
 
-        if False:
-            mash_file_path = os.environ['HOME'] + '/Dataset/MashV4/ShapeNet/03636649/583a5a163e59e16da523f74182db8f2.npy'
+        if True:
+            mash_file_path = os.environ['HOME'] + '/chLi/Dataset/MashV4/ShapeNet/03636649/583a5a163e59e16da523f74182db8f2.npy'
             self.dataloader_dict['single_shape'] =  {
                 'dataset': SingleShapeDataset(mash_file_path),
                 'repeat_num': 1,
             }
 
-        if True:
+        if False:
             self.dataloader_dict['mash'] =  {
                 'dataset': MashDataset(dataset_root_folder_path, 'train'),
                 'repeat_num': 1,
@@ -317,7 +317,7 @@ class Trainer(object):
     def sampleModelStep(self, model: MAR, model_name: str) -> bool:
         sample_gt = False
         sample_num = 3
-        dataset = self.dataloader_dict['mash']['dataset']
+        dataset = self.dataloader_dict['single_shape']['dataset']
 
         model.eval()
 
@@ -572,7 +572,7 @@ class Trainer(object):
                         print('\t evalEpoch failed!')
                         return False
 
-                    if self.epoch % 50 == 0:
+                    if self.epoch % 1 == 0:
                         self.sampleStep()
                         self.sampleEMAStep()
 

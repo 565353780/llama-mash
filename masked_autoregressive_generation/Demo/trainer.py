@@ -16,8 +16,9 @@ def demo():
     # model_file_path = "../../output/20241226_09:04:34/total_model_last.pth".replace('../../', './')
     device = "auto"
     warm_step_num = 2000
+    warm_step_num = 200
     finetune_step_num = -1
-    lr = 2e-5
+    lr = 2e-4
     ema_start_step = 5000
     ema_decay_init = 0.99
     ema_decay = 0.999
