@@ -16,11 +16,11 @@ class MAR(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
     def __init__(self,
-                 anchor_num: int = 400, vae_stride=16, patch_size=1,
+                 anchor_num: int = 400, vae_stride=16,
                  encoder_embed_dim=1024, encoder_depth=16, encoder_num_heads=16,
                  decoder_embed_dim=1024, decoder_depth=16, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm,
-                 vae_embed_dim=16,
+                 vae_embed_dim=25,
                  mask_ratio_min=0.7,
                  label_drop_prob=0.1,
                  class_num=1000,
@@ -41,9 +41,8 @@ class MAR(nn.Module):
         self.vae_embed_dim = vae_embed_dim
 
         self.vae_stride = vae_stride
-        self.patch_size = patch_size
         self.seq_len = anchor_num
-        self.token_embed_dim = vae_embed_dim * patch_size**2
+        self.token_embed_dim = vae_embed_dim
         self.grad_checkpointing = grad_checkpointing
 
         self.device = device
@@ -212,7 +211,6 @@ class MAR(nn.Module):
         return loss
 
     def forward(self, x: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
-
         # class embed
         class_embedding = self.class_emb(labels)
 
