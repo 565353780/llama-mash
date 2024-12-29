@@ -1,6 +1,7 @@
 import sys
 sys.path.append('../ma-sh/')
 sys.path.append('../distribution-manage/')
+sys.path.append('../base-trainer/')
 
 import os
 
