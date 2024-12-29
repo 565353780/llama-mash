@@ -64,7 +64,9 @@ class MAR(nn.Module):
         self.z_proj = nn.Linear(self.token_embed_dim, encoder_embed_dim, bias=True)
         self.z_proj_ln = nn.LayerNorm(encoder_embed_dim, eps=1e-6)
         self.buffer_size = buffer_size
-        self.encoder_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len + self.buffer_size, encoder_embed_dim))
+
+        # FIXME: positions are random, need to remove this pos_embed
+        # self.encoder_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len + self.buffer_size, encoder_embed_dim))
 
         self.encoder_blocks = nn.ModuleList([
             Block(encoder_embed_dim, encoder_num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer,
@@ -75,14 +77,18 @@ class MAR(nn.Module):
         # MAR decoder specifics
         self.decoder_embed = nn.Linear(encoder_embed_dim, decoder_embed_dim, bias=True)
         self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
-        self.decoder_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len + self.buffer_size, decoder_embed_dim))
+
+        # FIXME: positions are random, need to remove this pos_embed
+        # self.decoder_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len + self.buffer_size, decoder_embed_dim))
 
         self.decoder_blocks = nn.ModuleList([
             Block(decoder_embed_dim, decoder_num_heads, mlp_ratio, qkv_bias=True, norm_layer=norm_layer,
                   proj_drop=proj_dropout, attn_drop=attn_dropout) for _ in range(decoder_depth)])
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.diffusion_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len, decoder_embed_dim))
+
+        # FIXME: positions are random, need to remove this pos_embed
+        # self.diffusion_pos_embed_learned = nn.Parameter(torch.zeros(1, self.seq_len, decoder_embed_dim))
 
         self.initialize_weights()
 
@@ -104,9 +110,9 @@ class MAR(nn.Module):
         torch.nn.init.normal_(self.class_emb.weight, std=.02)
         torch.nn.init.normal_(self.fake_latent, std=.02)
         torch.nn.init.normal_(self.mask_token, std=.02)
-        torch.nn.init.normal_(self.encoder_pos_embed_learned, std=.02)
-        torch.nn.init.normal_(self.decoder_pos_embed_learned, std=.02)
-        torch.nn.init.normal_(self.diffusion_pos_embed_learned, std=.02)
+        # torch.nn.init.normal_(self.encoder_pos_embed_learned, std=.02)
+        # torch.nn.init.normal_(self.decoder_pos_embed_learned, std=.02)
+        # torch.nn.init.normal_(self.diffusion_pos_embed_learned, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
         self.apply(self._init_weights)
@@ -160,7 +166,8 @@ class MAR(nn.Module):
         x[:, :self.buffer_size] = class_embedding.unsqueeze(1)
 
         # encoder position embedding
-        x = x + self.encoder_pos_embed_learned
+        # x = x + self.encoder_pos_embed_learned
+
         x = self.z_proj_ln(x)
 
         # dropping
@@ -188,7 +195,8 @@ class MAR(nn.Module):
         x_after_pad[(1 - mask_with_buffer).nonzero(as_tuple=True)] = x.reshape(x.shape[0] * x.shape[1], x.shape[2])
 
         # decoder position embedding
-        x = x_after_pad + self.decoder_pos_embed_learned
+        # x = x_after_pad + self.decoder_pos_embed_learned
+        x = x_after_pad
 
         # apply Transformer blocks
         if self.grad_checkpointing and not torch.jit.is_scripting():
@@ -200,7 +208,8 @@ class MAR(nn.Module):
         x = self.decoder_norm(x)
 
         x = x[:, self.buffer_size:]
-        x = x + self.diffusion_pos_embed_learned
+
+        # x = x + self.diffusion_pos_embed_learned
         return x
 
     def forward_loss(self, z, target, mask):
@@ -211,12 +220,11 @@ class MAR(nn.Module):
         loss = self.diffloss(z=z, target=target, mask=mask)
         return loss
 
-    def forward(self, x: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def forwardData(self, x: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
         # class embed
         class_embedding = self.class_emb(labels)
 
-        # patchify and mask (drop) tokens
-        gt_latents = x.clone().detach()
+        # mask (drop) tokens
         orders = self.sample_orders(bsz=x.size(0))
         mask = self.random_masking(x, orders)
 
@@ -226,10 +234,31 @@ class MAR(nn.Module):
         # mae decoder
         z = self.forward_mae_decoder(x, mask)
 
-        # diffloss
-        loss = self.forward_loss(z=z, target=gt_latents, mask=mask)
+        return z
 
-        return loss
+    def forward(self, data_dict: dict) -> dict:
+        x = data_dict['mash_params']
+        labels = data_dict['condition']
+
+        # class embed
+        class_embedding = self.class_emb(labels)
+
+        # mask (drop) tokens
+        orders = self.sample_orders(bsz=x.size(0))
+        mask = self.random_masking(x, orders)
+
+        # mae encoder
+        x = self.forward_mae_encoder(x, mask, class_embedding)
+
+        # mae decoder
+        z = self.forward_mae_decoder(x, mask)
+
+        result_dict = {
+            'z': z,
+            'mask': mask,
+        }
+
+        return result_dict
 
     def sample_tokens(self, bsz, num_iter=64, cfg=1.0, cfg_schedule="linear", labels=None, temperature=1.0, progress=False):
 

@@ -4,14 +4,13 @@ import numpy as np
 from tqdm import trange
 from typing import Union
 
+from ma_sh.Model.mash import Mash
+
 from base_trainer.Module.base_trainer import BaseTrainer
 
 from masked_autoregressive_generation.Dataset.mash import MashDataset
 from masked_autoregressive_generation.Dataset.single_shape import SingleShapeDataset
 from masked_autoregressive_generation.Model.mar import MAR, mar_base
-from masked_autoregressive_generation.Method.path import createFileFolder, renameFile, removeFile
-
-from ma_sh.Model.mash import Mash
 
 
 class Trainer(BaseTrainer):
@@ -32,7 +31,18 @@ class Trainer(BaseTrainer):
         ema_decay: float = 0.999,
         save_result_folder_path: Union[str, None] = None,
         save_log_folder_path: Union[str, None] = None,
+        best_model_metric_name: Union[str, None] = None,
+        is_metric_lower_better: bool = True,
+        sample_results_freq: int = -1,
+        use_dataloader_x: bool = False,
+        use_amp: bool = False,
     ) -> None:
+        self.dataset_root_folder_path = dataset_root_folder_path
+
+        self.mash_channel = 400
+        self.mask_degree = 3
+        self.sh_degree = 2
+
         super().__init__(
             batch_size,
             accum_iter,
@@ -48,13 +58,12 @@ class Trainer(BaseTrainer):
             ema_decay,
             save_result_folder_path,
             save_log_folder_path,
+            best_model_metric_name,
+            is_metric_lower_better,
+            sample_results_freq,
+            use_dataloader_x,
+            use_amp,
         )
-
-        self.dataset_root_folder_path = dataset_root_folder_path
-
-        self.mash_channel = 400
-        self.mask_degree = 3
-        self.sh_degree = 2
         return
 
     def createDatasets(self) -> bool:
@@ -100,6 +109,8 @@ class Trainer(BaseTrainer):
                 'dataset': MashDataset(self.dataset_root_folder_path, 'eval'),
             }
 
+            self.dataloader_dict['eval']['dataset'].paths_list = self.dataloader_dict['eval']['dataset'].paths_list[:64]
+
         return True
 
     def createModel(self) -> bool:
@@ -110,16 +121,35 @@ class Trainer(BaseTrainer):
 
         return True
 
-    def getLossDict(self, data_dict: dict, result_dict: dict) -> dict:
-        loss_dict = {}
+    def preProcessData(self, data_dict: dict, is_training: bool = False) -> dict:
+        if 'category_id' in data_dict.keys():
+            data_dict['condition'] = data_dict['category_id']
+        elif 'embedding' in data_dict.keys():
+            data_dict['condition'] = data_dict['embedding']
+        else:
+            print('[ERROR][Trainer::toCondition]')
+            print('\t valid condition type not found!')
+            exit()
 
-        loss_dict['loss'] = result_dict['loss']
+        return data_dict
+
+    def getLossDict(self, data_dict: dict, result_dict: dict) -> dict:
+        gt_latents = data_dict['mash_params'].clone().detach()
+        z = result_dict['z']
+        mask = result_dict['mask']
+
+        # diffloss
+        loss = self.model.module.forward_loss(z=z, target=gt_latents, mask=mask)
+
+        loss_dict = {
+            'Loss': loss,
+        }
 
         return loss_dict
 
     @torch.no_grad()
     def sampleModelStep(self, model: MAR, model_name: str) -> bool:
-        sample_gt = False
+        sample_gt = True
         sample_num = 3
         dataset = self.dataloader_dict['single_shape']['dataset']
 
@@ -128,9 +158,6 @@ class Trainer(BaseTrainer):
         data = dataset.__getitem__(0)
         gt_mash = data['mash_params']
         condition = data['category_id']
-
-        if sample_gt:
-            gt_mash = dataset.normalizeInverse(gt_mash)
 
         print('[INFO][Trainer::sampleModelStep]')
         print("\t start diffuse", sample_num, "mashs....")
@@ -167,6 +194,8 @@ class Trainer(BaseTrainer):
         )
 
         if sample_gt and not self.gt_sample_added_to_logger:
+            gt_mash = dataset.normalizeInverse(gt_mash)
+
             sh2d = 2 * self.mask_degree + 1
             ortho_poses = gt_mash[:, :6]
             positions = gt_mash[:, 6:9]
@@ -209,16 +238,3 @@ class Trainer(BaseTrainer):
             self.logger.addPointCloud(model_name + '/pcd_' + str(i), pcd, self.step)
 
         return True
-
-    def preProcessData(self, data_dict: dict) -> dict:
-        if 'category_id' in data_dict.keys():
-            data_dict['condition'] = data_dict['category_id']
-            return data_dict
-
-        if 'embedding' in data_dict.keys():
-            data_dict['condition'] = data_dict['embedding']
-            return data_dict
-
-        print('[ERROR][Trainer::toCondition]')
-        print('\t valid condition type not found!')
-        exit()
